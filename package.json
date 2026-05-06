@@ -1,0 +1,21 @@
+{
+  "name": "carelink-backend",
+  "version": "1.0.0",
+  "description": "Express.js backend for CareLink frontend",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^16.0.3",
+    "express": "^4.22.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.3"
+  }
+}
