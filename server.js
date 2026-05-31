@@ -1,43 +1,117 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const app = express();
 const mongoose = require('mongoose');
+const { errorHandler } = require('./src/middlewares/errorHandler');
 
-// Connect to MongoDB
+const app = express();
+
+/**
+ * Database Connection
+ */
 const connectDB = async () => {
   const uri = process.env.MONGO_URI;
   if (!uri) {
-    console.warn('MONGO_URI not set in environment; skipping DB connection');
+    console.warn('⚠️  MONGO_URI not set in environment; skipping DB connection');
     return;
   }
   try {
-    await mongoose.connect(uri, { useNewUrlParser: true, useUnifiedTopology: true });
-    console.log('MongoDB connected');
+    await mongoose.connect(uri, { 
+      useNewUrlParser: true, 
+      useUnifiedTopology: true 
+    });
+    console.log('✅ MongoDB connected successfully');
   } catch (err) {
-    console.error('MongoDB connection error:', err.message);
+    console.error('❌ MongoDB connection error:', err.message);
     process.exit(1);
   }
 };
+
 connectDB();
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+/**
+ * Middleware Configuration
+ */
 
-// Routes
-app.use('/api/auth', require('./src/routes/authRoutes'));
+// CORS - Allow requests from frontend
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
-// Error handler
-const { errorHandler } = require('./src/middlewares/errorHandler');
-app.use(errorHandler);
+// Body Parser
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Root endpoint
-app.get('/', (req, res) => {
-  res.send('CareLink Backend API is running');
+// Request logging middleware (basic)
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.path}`);
+  next();
 });
 
+/**
+ * Routes
+ */
+const apiPrefix = process.env.API_PREFIX || '/api/v1';
+
+// Health check endpoint
+app.get('/', (req, res) => {
+  res.json({ 
+    success: true,
+    message: 'CareLink Backend API is running',
+    version: process.env.API_VERSION || 'v1',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Auth routes
+app.use(`${apiPrefix}/auth`, require('./src/routes/authRoutes'));
+
+// Booking routes
+app.use(`${apiPrefix}/booking`, require('./src/routes/bookingRoutes'));
+
+// Doctor routes
+app.use(`${apiPrefix}/doctors`, require('./src/routes/doctorRoutes'));
+
+// 404 - Not Found
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'Route not found',
+    path: req.path
+  });
+});
+
+/**
+ * Error Handling Middleware
+ */
+app.use(errorHandler);
+
+/**
+ * Server Start
+ */
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+const server = app.listen(PORT, () => {
+  console.log(`\n${'='.repeat(50)}`);
+  console.log(`🚀 CareLink Backend Server`);
+  console.log(`   Running on port: ${PORT}`);
+  console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`   API Prefix: ${apiPrefix}`);
+  console.log(`${'='.repeat(50)}\n`);
+});
+
+/**
+ * Graceful Shutdown
+ */
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received. Shutting down gracefully...');
+  server.close(() => {
+    console.log('Server closed');
+    mongoose.connection.close(false, () => {
+      console.log('MongoDB connection closed');
+      process.exit(0);
+    });
+  });
 });
