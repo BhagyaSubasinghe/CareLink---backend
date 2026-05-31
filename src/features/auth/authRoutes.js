@@ -1,8 +1,18 @@
 const express = require('express');
 const router = express.Router();
 const { body, validationResult } = require('express-validator');
-const { register, login, forgotPassword, resetPassword, getMe, updateProfile } = require('../controllers/authController');
-const { protect } = require('../middlewares/authMiddleware');
+const {
+  register,
+  login,
+  forgotPassword,
+  verifyOtp,
+  resetPassword,
+  googleLogin,
+  googleRegister,
+  getCurrentUser,
+  updateProfile
+} = require('./authController');
+const { verifyToken } = require('../../shared/middlewares/authMiddleware');
 
 /**
  * Validation Middleware
@@ -10,7 +20,7 @@ const { protect } = require('../middlewares/authMiddleware');
 const validateErrors = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       success: false,
       message: 'Validation failed',
       errors: errors.array().map(err => ({
@@ -23,10 +33,15 @@ const validateErrors = (req, res, next) => {
 };
 
 /**
- * Public Routes
+ * ============================================
+ * PUBLIC ROUTES (No Authentication Required)
+ * ============================================
  */
 
-// POST /api/auth/register
+/**
+ * POST /api/auth/register
+ * Register a new user with email/password
+ */
 router.post(
   '/register',
   [
@@ -56,7 +71,10 @@ router.post(
   register
 );
 
-// POST /api/auth/login
+/**
+ * POST /api/auth/login
+ * Login user with email/password
+ */
 router.post(
   '/login',
   [
@@ -70,7 +88,10 @@ router.post(
   login
 );
 
-// POST /api/auth/forgot-password
+/**
+ * POST /api/auth/forgot-password (STEP 1)
+ * Send OTP to user's email
+ */
 router.post(
   '/forgot-password',
   [
@@ -82,11 +103,32 @@ router.post(
   forgotPassword
 );
 
-// POST /api/auth/reset-password
+/**
+ * POST /api/auth/verify-otp (STEP 2)
+ * Verify OTP and get reset token
+ */
+router.post(
+  '/verify-otp',
+  [
+    body('email')
+      .trim()
+      .isEmail().withMessage('Valid email is required'),
+    body('otp')
+      .trim()
+      .isLength({ min: 6, max: 6 }).withMessage('OTP must be 6 digits')
+  ],
+  validateErrors,
+  verifyOtp
+);
+
+/**
+ * POST /api/auth/reset-password (STEP 3)
+ * Reset password using reset token from verified OTP
+ */
 router.post(
   '/reset-password',
   [
-    body('token')
+    body('resetToken')
       .notEmpty().withMessage('Reset token is required'),
     body('password')
       .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
@@ -102,16 +144,78 @@ router.post(
 );
 
 /**
- * Protected Routes (Require Authentication)
+ * POST /api/auth/google-login
+ * Login/register user with Google OAuth
+ */
+router.post(
+  '/google-login',
+  [
+    body('googleId')
+      .trim()
+      .notEmpty().withMessage('Google ID is required'),
+    body('email')
+      .trim()
+      .isEmail().withMessage('Valid email is required'),
+    body('firstName')
+      .optional()
+      .trim(),
+    body('lastName')
+      .optional()
+      .trim(),
+    body('avatar')
+      .optional()
+      .trim()
+  ],
+  validateErrors,
+  googleLogin
+);
+
+/**
+ * POST /api/auth/google-register
+ * Register user with Google OAuth (alternative endpoint)
+ */
+router.post(
+  '/google-register',
+  [
+    body('googleId')
+      .trim()
+      .notEmpty().withMessage('Google ID is required'),
+    body('email')
+      .trim()
+      .isEmail().withMessage('Valid email is required'),
+    body('firstName')
+      .optional()
+      .trim(),
+    body('lastName')
+      .optional()
+      .trim(),
+    body('avatar')
+      .optional()
+      .trim()
+  ],
+  validateErrors,
+  googleRegister
+);
+
+/**
+ * ============================================
+ * PROTECTED ROUTES (Authentication Required)
+ * ============================================
  */
 
-// GET /api/auth/me - Get current user profile
-router.get('/me', protect, getMe);
+/**
+ * GET /api/users/profile
+ * Get current logged-in user profile
+ */
+router.get('/profile', verifyToken, getCurrentUser);
 
-// PUT /api/auth/profile - Update user profile
+/**
+ * PUT /api/users/profile
+ * Update current user profile
+ */
 router.put(
   '/profile',
-  protect,
+  verifyToken,
   [
     body('firstName')
       .optional()
@@ -124,10 +228,14 @@ router.put(
     body('phone')
       .optional()
       .trim()
-      .matches(/^\d{10}$/).withMessage('Phone must be 10 digits')
+      .matches(/^\d{10}$/).withMessage('Phone must be 10 digits'),
+    body('avatar')
+      .optional()
+      .trim()
   ],
   validateErrors,
   updateProfile
 );
 
 module.exports = router;
+

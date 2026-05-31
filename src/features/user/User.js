@@ -38,10 +38,18 @@ const userSchema = new mongoose.Schema(
       type: String, 
       default: null 
     },
+    avatar: {
+      type: String,
+      default: null
+    },
     role: { 
       type: String, 
       enum: ['patient', 'doctor', 'admin'], 
       default: 'patient' 
+    },
+    isVerified: { 
+      type: Boolean, 
+      default: false 
     },
     verified: { 
       type: Boolean, 
@@ -55,6 +63,23 @@ const userSchema = new mongoose.Schema(
       type: Date, 
       select: false 
     },
+    // Google OAuth fields
+    googleId: {
+      type: String,
+      default: null,
+      unique: true,
+      sparse: true
+    },
+    // OTP for forgot password flow (3-step process)
+    resetOtp: {
+      type: String,
+      select: false
+    },
+    resetOtpExpires: {
+      type: Date,
+      select: false
+    },
+    // Legacy token fields (keeping for backward compatibility)
     resetPasswordToken: { 
       type: String, 
       select: false 
