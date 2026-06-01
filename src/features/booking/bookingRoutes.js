@@ -1,15 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { body, validationResult } = require('express-validator');
+const { body, query, param, validationResult } = require('express-validator');
 const {
-  getAllDoctors,
-  getDoctorProfile,
-  getAvailableSlots,
-  bookAppointment,
-  getMyAppointments,
-  getAppointmentDetails,
-  cancelAppointment,
-  addReview
+  createBooking,
+  getBookings,
+  cancelBooking
 } = require('./bookingController');
 const { verifyToken } = require('../../shared/middlewares/authMiddleware');
 
@@ -32,90 +27,83 @@ const validateErrors = (req, res, next) => {
 };
 
 /**
- * Public Routes
+ * ============================================
+ * BOOKING ROUTES (3 Core Endpoints)
+ * ============================================
  */
-
-// GET /api/v1/booking/doctors
-// Get all available doctors with filtering
-router.get('/doctors', getAllDoctors);
-
-// GET /api/v1/booking/doctors/:id
-// Get specific doctor profile
-router.get('/doctors/:id', getDoctorProfile);
-
-// GET /api/v1/booking/available-slots/:doctorId/:date
-// Get available time slots for a doctor on specific date
-router.get('/available-slots/:doctorId/:date', getAvailableSlots);
 
 /**
- * Protected Routes (Require Authentication)
+ * POST /api/v1/bookings
+ * Create a new booking/appointment
+ * @body { doctor, date, timeSlot, visitType, reason }
  */
-
-// POST /api/v1/booking/appointments
-// Book an appointment
 router.post(
-  '/appointments',
+  '/',
   verifyToken,
   [
-    body('doctorId')
-      .notEmpty().withMessage('Doctor ID is required'),
-    body('appointmentDate')
-      .notEmpty().withMessage('Appointment date is required')
-      .isISO8601().withMessage('Invalid date format'),
-    body('startTime')
-      .notEmpty().withMessage('Start time is required')
+    body('doctor')
+      .notEmpty().withMessage('Doctor ID is required')
+      .isMongoId().withMessage('Invalid doctor ID'),
+    body('date')
+      .notEmpty().withMessage('Date is required')
+      .isISO8601().withMessage('Invalid date format (use YYYY-MM-DD)'),
+    body('timeSlot')
+      .notEmpty().withMessage('Time slot is required')
       .matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).withMessage('Invalid time format (HH:MM)'),
-    body('symptoms')
-      .notEmpty().withMessage('Please describe your symptoms')
+    body('visitType')
+      .notEmpty().withMessage('Visit type is required')
+      .isIn(['in-person', 'telemedicine']).withMessage('Visit type must be in-person or telemedicine'),
+    body('reason')
+      .notEmpty().withMessage('Reason for visit is required')
       .trim()
-      .isLength({ min: 10, max: 500 }).withMessage('Symptoms must be between 10 and 500 characters'),
-    body('consultationType')
-      .optional()
-      .isIn(['In-Person', 'Online', 'Phone']).withMessage('Invalid consultation type')
+      .isLength({ min: 10, max: 500 }).withMessage('Reason must be between 10 and 500 characters')
   ],
   validateErrors,
-  bookAppointment
+  createBooking
 );
 
-// GET /api/v1/booking/my-appointments
-// Get user's appointments
-router.get('/my-appointments', verifyToken, getMyAppointments);
-
-// GET /api/v1/booking/appointments/:id
-// Get appointment details
-router.get('/appointments/:id', verifyToken, getAppointmentDetails);
-
-// PUT /api/v1/booking/appointments/:id/cancel
-// Cancel an appointment
-router.put(
-  '/appointments/:id/cancel',
+/**
+ * GET /api/v1/bookings
+ * Get user's appointments/bookings
+ * @query { status, page, limit }
+ */
+router.get(
+  '/',
   verifyToken,
   [
-    body('cancellationReason')
+    query('status')
       .optional()
-      .trim()
-      .isLength({ max: 500 }).withMessage('Cancellation reason must not exceed 500 characters')
+      .isIn(['Scheduled', 'Completed', 'Cancelled', 'Rescheduled', 'No-Show']).withMessage('Invalid status'),
+    query('page')
+      .optional()
+      .isInt({ min: 1 }).withMessage('Page must be a positive integer'),
+    query('limit')
+      .optional()
+      .isInt({ min: 1, max: 50 }).withMessage('Limit must be between 1 and 50')
   ],
   validateErrors,
-  cancelAppointment
+  getBookings
 );
 
-// PUT /api/v1/booking/appointments/:id/review
-// Add review and rating for appointment
-router.put(
-  '/appointments/:id/review',
+/**
+ * DELETE /api/v1/bookings/:id
+ * Cancel a booking/appointment
+ * @param { id } - Booking ID
+ * @body { reason (optional) }
+ */
+router.delete(
+  '/:id',
   verifyToken,
   [
-    body('rating')
-      .notEmpty().withMessage('Rating is required')
-      .isInt({ min: 1, max: 5 }).withMessage('Rating must be between 1 and 5'),
-    body('review')
+    param('id')
+      .isMongoId().withMessage('Invalid booking ID'),
+    body('reason')
       .optional()
       .trim()
-      .isLength({ max: 500 }).withMessage('Review must not exceed 500 characters')
+      .isLength({ max: 500 }).withMessage('Reason must not exceed 500 characters')
   ],
   validateErrors,
-  addReview
+  cancelBooking
 );
 
 module.exports = router;
