@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
-const { errorHandler } = require('./src/middlewares/errorHandler');
+const { errorHandler } = require('./src/shared/middlewares/errorHandler');
 
 const app = express();
 
@@ -66,14 +66,10 @@ app.get('/', (req, res) => {
   });
 });
 
-// Auth routes
-app.use(`${apiPrefix}/auth`, require('./src/routes/authRoutes'));
-
-// Booking routes
-app.use(`${apiPrefix}/booking`, require('./src/routes/bookingRoutes'));
-
-// Doctor routes
-app.use(`${apiPrefix}/doctors`, require('./src/routes/doctorRoutes'));
+// Feature-based Routes
+app.use(`${apiPrefix}/auth`, require('./src/features/auth/authRoutes'));
+app.use(`${apiPrefix}/doctors`, require('./src/features/doctor/doctorRoutes'));
+app.use(`${apiPrefix}/bookings`, require('./src/features/booking/bookingRoutes'));
 
 // 404 - Not Found
 app.use((req, res) => {

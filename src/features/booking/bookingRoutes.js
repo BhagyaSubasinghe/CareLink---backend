@@ -10,8 +10,8 @@ const {
   getAppointmentDetails,
   cancelAppointment,
   addReview
-} = require('../controllers/bookingController');
-const { protect } = require('../middlewares/authMiddleware');
+} = require('./bookingController');
+const { verifyToken } = require('../../shared/middlewares/authMiddleware');
 
 /**
  * Validation middleware
@@ -55,7 +55,7 @@ router.get('/available-slots/:doctorId/:date', getAvailableSlots);
 // Book an appointment
 router.post(
   '/appointments',
-  protect,
+  verifyToken,
   [
     body('doctorId')
       .notEmpty().withMessage('Doctor ID is required'),
@@ -79,17 +79,17 @@ router.post(
 
 // GET /api/v1/booking/my-appointments
 // Get user's appointments
-router.get('/my-appointments', protect, getMyAppointments);
+router.get('/my-appointments', verifyToken, getMyAppointments);
 
 // GET /api/v1/booking/appointments/:id
 // Get appointment details
-router.get('/appointments/:id', protect, getAppointmentDetails);
+router.get('/appointments/:id', verifyToken, getAppointmentDetails);
 
 // PUT /api/v1/booking/appointments/:id/cancel
 // Cancel an appointment
 router.put(
   '/appointments/:id/cancel',
-  protect,
+  verifyToken,
   [
     body('cancellationReason')
       .optional()
@@ -104,7 +104,7 @@ router.put(
 // Add review and rating for appointment
 router.put(
   '/appointments/:id/review',
-  protect,
+  verifyToken,
   [
     body('rating')
       .notEmpty().withMessage('Rating is required')

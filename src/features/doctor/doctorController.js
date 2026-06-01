@@ -1,10 +1,112 @@
-const Doctor = require('../models/Doctor');
-const User = require('../models/User');
-const Appointment = require('../models/Appointment');
+const Doctor = require('./Doctor');
+const User = require('../user/User');
+const Appointment = require('../booking/Appointment');
+
+/**
+ * ============================================
+ * PUBLIC API METHODS (No Authentication)
+ * ============================================
+ */
+
+/**
+ * METHOD 1: GET ALL DOCTORS
+ * @desc    Get all doctors with filters (specialty, location, visitType)
+ * @route   GET /api/doctors
+ * @query   specialty, location, visitType, rating, page, limit
+ * @return  { success: bool, data: array, total: number, page: number, limit: number }
+ */
+exports.getAllDoctors = async (req, res, next) => {
+  try {
+    const { specialty, location, visitType, rating, page = 1, limit = 10 } = req.query;
+
+    // Build filter object
+    const filter = { isVerified: true };
+
+    // Filter by specialty
+    if (specialty) {
+      filter.$or = filter.$or || [];
+      filter.specialty = specialty;
+    }
+
+    // Filter by location
+    if (location) {
+      filter.location = new RegExp(location, 'i'); // Case-insensitive
+    }
+
+    // Filter by visit type (in-person or telemedicine)
+    if (visitType) {
+      filter.visitTypes = visitType;
+    }
+
+    // Filter by minimum rating
+    if (rating) {
+      filter.rating = { $gte: parseFloat(rating) };
+    }
+
+    // Pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Execute query
+    const doctors = await Doctor.find(filter)
+      .select('firstName lastName specialty hospital location rating reviews fee avatar visitTypes consultationFee experience education')
+      .skip(skip)
+      .limit(parseInt(limit))
+      .sort({ rating: -1, reviews: -1 });
+
+    // Get total count
+    const total = await Doctor.countDocuments(filter);
+
+    res.status(200).json({
+      success: true,
+      data: doctors,
+      total,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      pages: Math.ceil(total / parseInt(limit))
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * METHOD 2: GET SINGLE DOCTOR BY ID
+ * @desc    Get doctor details by ID (for booking page)
+ * @route   GET /api/doctors/:id
+ * @return  { success: bool, data: object }
+ */
+exports.getDoctorById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const doctor = await Doctor.findById(id)
+      .select('firstName lastName specialty hospital location rating reviews fee avatar visitTypes consultationFee experience education bio slots availableDays consultationStartTime consultationEndTime');
+
+    if (!doctor || !doctor.isVerified) {
+      return res.status(404).json({
+        success: false,
+        message: 'Doctor not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: doctor
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * ============================================
+ * PROTECTED DOCTOR MANAGEMENT METHODS
+ * ============================================
+ */
 
 /**
  * @desc    Register as a doctor
- * @route   POST /api/v1/doctors/register
+ * @route   POST /api/doctors/register
  * @body    { specialization, licenseNumber, experience, hospital, consultationFee, bio, qualifications, availableDays, consultationStartTime, consultationEndTime, slotDuration }
  * @header  Authorization: Bearer <token>
  * @return  { success: bool, message: string, doctor: object }
@@ -16,14 +118,27 @@ exports.registerDoctor = async (req, res, next) => {
       licenseNumber,
       experience,
       hospital,
+      location,
       consultationFee,
       bio,
       qualifications,
+      education,
       availableDays,
       consultationStartTime,
       consultationEndTime,
-      slotDuration
+      slotDuration,
+      visitTypes,
+      slots
     } = req.body;
+
+    // Get user details
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
 
     // Check if already registered as doctor
     const existingDoctor = await Doctor.findOne({ user: req.user.id });
@@ -46,29 +161,37 @@ exports.registerDoctor = async (req, res, next) => {
     // Create doctor profile
     const doctor = await Doctor.create({
       user: req.user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      phone: user.phone,
+      avatar: user.avatar,
+      specialty: specialization,
       specialization,
       licenseNumber,
       experience,
       hospital,
+      location: location || 'Not specified',
       consultationFee,
+      fee: consultationFee,
       bio: bio || '',
       qualifications: qualifications || [],
+      education: education || [],
       availableDays: availableDays || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
       consultationStartTime,
       consultationEndTime,
-      slotDuration: slotDuration || 30
+      slotDuration: slotDuration || 30,
+      visitTypes: visitTypes || ['in-person', 'telemedicine'],
+      slots: slots || []
     });
 
     // Update user role
     await User.findByIdAndUpdate(req.user.id, { role: 'doctor' });
 
-    // Populate user details
-    await doctor.populate('user', 'firstName lastName email phone');
-
     res.status(201).json({
       success: true,
       message: 'Doctor profile created successfully. Pending admin verification.',
-      doctor
+      data: doctor
     });
   } catch (err) {
     if (err.code === 11000) {
@@ -83,14 +206,13 @@ exports.registerDoctor = async (req, res, next) => {
 
 /**
  * @desc    Get doctor's profile
- * @route   GET /api/v1/doctors/profile
+ * @route   GET /api/doctors/profile
  * @header  Authorization: Bearer <token>
- * @return  { success: bool, doctor: object }
+ * @return  { success: bool, data: object }
  */
 exports.getDoctorProfile = async (req, res, next) => {
   try {
-    const doctor = await Doctor.findOne({ user: req.user.id })
-      .populate('user', 'firstName lastName email phone profilePicture');
+    const doctor = await Doctor.findOne({ user: req.user.id });
 
     if (!doctor) {
       return res.status(404).json({

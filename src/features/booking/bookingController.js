@@ -1,6 +1,6 @@
-const Appointment = require('../models/Appointment');
-const Doctor = require('../models/Doctor');
-const User = require('../models/User');
+const Appointment = require('./Appointment');
+const Doctor = require('../doctor/Doctor');
+const User = require('../user/User');
 
 /**
  * @desc    Get all doctors with filters
