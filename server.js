@@ -70,6 +70,7 @@ app.get('/', (req, res) => {
 app.use(`${apiPrefix}/auth`, require('./src/features/auth/authRoutes'));
 app.use(`${apiPrefix}/doctors`, require('./src/features/doctor/doctorRoutes'));
 app.use(`${apiPrefix}/bookings`, require('./src/features/booking/bookingRoutes'));
+app.use(`${apiPrefix}/medicines`, require('./src/features/medicine/medicineRoutes'));
 
 // 404 - Not Found
 app.use((req, res) => {
