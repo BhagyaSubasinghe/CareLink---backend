@@ -11,15 +11,14 @@ const app = express();
  */
 const connectDB = async () => {
   const uri = process.env.MONGO_URI;
+
   if (!uri) {
-    console.warn('⚠️  MONGO_URI not set in environment; skipping DB connection');
-    return;
+    console.warn('⚠️ MONGO_URI not set in environment');
+    process.exit(1);
   }
+
   try {
-    await mongoose.connect(uri, { 
-      useNewUrlParser: true, 
-      useUnifiedTopology: true 
-    });
+    await mongoose.connect(uri);
     console.log('✅ MongoDB connected successfully');
   } catch (err) {
     console.error('❌ MongoDB connection error:', err.message);
@@ -33,7 +32,7 @@ connectDB();
  * Middleware Configuration
  */
 
-// CORS - Allow requests from frontend
+// CORS
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
   credentials: true,
@@ -43,9 +42,12 @@ app.use(cors({
 
 // Body Parser
 app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.urlencoded({
+  limit: '50mb',
+  extended: true
+}));
 
-// Request logging middleware (basic)
+// Request Logger
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.path}`);
   next();
@@ -56,9 +58,9 @@ app.use((req, res, next) => {
  */
 const apiPrefix = process.env.API_PREFIX || '/api/v1';
 
-// Health check endpoint
+// Health Check
 app.get('/', (req, res) => {
-  res.json({ 
+  res.json({
     success: true,
     message: 'CareLink Backend API is running',
     version: process.env.API_VERSION || 'v1',
@@ -66,13 +68,13 @@ app.get('/', (req, res) => {
   });
 });
 
-// Feature-based Routes
+// Feature Routes
 app.use(`${apiPrefix}/auth`, require('./src/features/auth/authRoutes'));
 app.use(`${apiPrefix}/doctors`, require('./src/features/doctor/doctorRoutes'));
 app.use(`${apiPrefix}/bookings`, require('./src/features/booking/bookingRoutes'));
 app.use(`${apiPrefix}/medicines`, require('./src/features/medicine/medicineRoutes'));
 
-// 404 - Not Found
+// 404 Route
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -82,7 +84,7 @@ app.use((req, res) => {
 });
 
 /**
- * Error Handling Middleware
+ * Error Handler
  */
 app.use(errorHandler);
 
@@ -90,13 +92,14 @@ app.use(errorHandler);
  * Server Start
  */
 const PORT = process.env.PORT || 5000;
+
 const server = app.listen(PORT, () => {
-  console.log(`\n${'='.repeat(50)}`);
-  console.log(`🚀 CareLink Backend Server`);
+  console.log('\n==================================================');
+  console.log('🚀 CareLink Backend Server');
   console.log(`   Running on port: ${PORT}`);
   console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`   API Prefix: ${apiPrefix}`);
-  console.log(`${'='.repeat(50)}\n`);
+  console.log('==================================================\n');
 });
 
 /**
@@ -104,9 +107,11 @@ const server = app.listen(PORT, () => {
  */
 process.on('SIGTERM', () => {
   console.log('SIGTERM received. Shutting down gracefully...');
+
   server.close(() => {
     console.log('Server closed');
-    mongoose.connection.close(false, () => {
+
+    mongoose.connection.close(false).then(() => {
       console.log('MongoDB connection closed');
       process.exit(0);
     });
