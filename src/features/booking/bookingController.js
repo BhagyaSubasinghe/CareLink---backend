@@ -9,6 +9,45 @@ const User = require('../user/User');
  */
 
 /**
+ * METHOD: GET QUEUE POSITION (GET)
+ * @desc    Get current queue position for a specific doctor, date, and time
+ * @route   GET /api/v1/bookings/queue-position
+ * @query   doctorId, date, time
+ * @return  { queueNumber: number }
+ */
+exports.getQueuePosition = async (req, res, next) => {
+  try {
+    const { doctorId, date, time } = req.query;
+
+    if (!doctorId || !date || !time) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide doctorId, date, and time'
+      });
+    }
+
+    const appointmentDate = new Date(date);
+    const dayStart = new Date(appointmentDate);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(appointmentDate);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    const count = await Appointment.countDocuments({
+      doctor: doctorId,
+      appointmentDate: { $gte: dayStart, $lte: dayEnd },
+      startTime: time
+    });
+
+    res.status(200).json({
+      success: true,
+      queueNumber: count + 1
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
  * METHOD 1: CREATE BOOKING (POST)
  * @desc    Book an appointment with a doctor
  * @route   POST /api/v1/bookings
@@ -18,11 +57,15 @@ const User = require('../user/User');
  */
 exports.createBooking = async (req, res, next) => {
   try {
-    const { doctor, date, timeSlot, visitType, reason } = req.body;
+    const doctorId = req.body.doctor || req.body.doctorId;
+    const date = req.body.date || req.body.appointmentDate;
+    const timeSlot = req.body.timeSlot || req.body.time;
+    const visitType = req.body.visitType || req.body.consultationType;
+    const reason = req.body.reason || req.body.symptoms;
     const patientId = req.user.id;
 
     // Verify doctor exists and is verified
-    const doctorProfile = await Doctor.findById(doctor);
+    const doctorProfile = await Doctor.findById(doctorId);
     if (!doctorProfile) {
       return res.status(404).json({
         success: false,
@@ -54,19 +97,8 @@ exports.createBooking = async (req, res, next) => {
     const dayEnd = new Date(appointmentDate);
     dayEnd.setHours(23, 59, 59, 999);
 
-    const existingAppointment = await Appointment.findOne({
-      doctor: doctor,
-      appointmentDate: { $gte: dayStart, $lte: dayEnd },
-      startTime: timeSlot,
-      status: { $in: ['Scheduled', 'Completed'] }
-    });
-
-    if (existingAppointment) {
-      return res.status(409).json({
-        success: false,
-        message: 'This time slot is already booked'
-      });
-    }
+    // We allow multiple patients to book the same time slot, assigning sequential Queue Numbers.
+    // Concurrency is handled by a compound unique index in the Database.
 
     // Calculate end time
     const [hours, minutes] = timeSlot.split(':');
@@ -77,10 +109,17 @@ exports.createBooking = async (req, res, next) => {
     );
     const endTime = `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
 
+    // Calculate queue number
+    const queueNumber = await Appointment.countDocuments({
+      doctor: doctorId,
+      appointmentDate: { $gte: dayStart, $lte: dayEnd },
+      startTime: timeSlot
+    }) + 1;
+
     // Create appointment
     const appointment = new Appointment({
       patient: patientId,
-      doctor: doctor,
+      doctor: doctorId,
       appointmentDate: appointmentDate,
       startTime: timeSlot,
       endTime: endTime,
@@ -88,7 +127,8 @@ exports.createBooking = async (req, res, next) => {
       consultationType: visitType === 'in-person' ? 'In-Person' : visitType === 'telemedicine' ? 'Online' : 'Phone',
       consultationFee: doctorProfile.consultationFee,
       status: 'Scheduled',
-      paymentStatus: 'Pending'
+      paymentStatus: 'Pending',
+      queueNumber: queueNumber
     });
 
     await appointment.save();
@@ -100,6 +140,7 @@ exports.createBooking = async (req, res, next) => {
     res.status(201).json({
       success: true,
       message: 'Appointment booked successfully',
+      queueNumber: appointment.queueNumber,
       data: appointment
     });
   } catch (err) {
@@ -429,19 +470,12 @@ exports.bookAppointment = async (req, res, next) => {
     const dayEnd = new Date(appointmentDate);
     dayEnd.setHours(23, 59, 59, 999);
     
-    const existingAppointment = await Appointment.findOne({
+    // Allow multiple patients per slot and distribute queueNumbers
+    const queueNumber = await Appointment.countDocuments({
       doctor: doctorId,
       appointmentDate: { $gte: dayStart, $lte: dayEnd },
-      startTime,
-      status: { $ne: 'Cancelled' }
-    });
-    
-    if (existingAppointment) {
-      return res.status(409).json({
-        success: false,
-        message: 'This time slot is already booked'
-      });
-    }
+      startTime
+    }) + 1;
     
     // Create appointment
     const appointment = await Appointment.create({
@@ -452,7 +486,8 @@ exports.bookAppointment = async (req, res, next) => {
       endTime,
       symptoms,
       consultationType: consultationType || 'In-Person',
-      consultationFee: doctor.consultationFee
+      consultationFee: doctor.consultationFee,
+      queueNumber
     });
     
     // Populate doctor details
@@ -462,6 +497,7 @@ exports.bookAppointment = async (req, res, next) => {
     res.status(201).json({
       success: true,
       message: 'Appointment booked successfully',
+      queueNumber: appointment.queueNumber,
       appointment
     });
   } catch (err) {

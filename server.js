@@ -76,6 +76,9 @@ app.use(`${apiPrefix}/bookings`, require('./src/features/booking/bookingRoutes')
 app.use(`${apiPrefix}/medicines`, require('./src/features/medicine/medicineRoutes'));
 app.use(`${apiPrefix}/admin`, require('./routes/adminRoutes'));
 
+// Standalone Appointment Routes (for Queue features matching frontend)
+app.use('/api/appointments', require('./src/features/booking/appointmentRoutes'));
+
 // 404 Route
 app.use((req, res) => {
   res.status(404).json({

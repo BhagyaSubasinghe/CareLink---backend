@@ -92,6 +92,10 @@ const appointmentSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Appointment',
       default: null
+    },
+    queueNumber: {
+      type: Number,
+      required: [true, 'Queue number is required']
     }
   },
   { timestamps: true }
@@ -102,5 +106,9 @@ appointmentSchema.index({ patient: 1, appointmentDate: -1 });
 appointmentSchema.index({ doctor: 1, appointmentDate: -1 });
 appointmentSchema.index({ status: 1 });
 appointmentSchema.index({ appointmentDate: 1 });
+appointmentSchema.index(
+  { doctor: 1, appointmentDate: 1, startTime: 1, queueNumber: 1 },
+  { unique: true }
+);
 
 module.exports = mongoose.model('Appointment', appointmentSchema);
