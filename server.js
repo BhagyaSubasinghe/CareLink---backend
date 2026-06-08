@@ -74,6 +74,7 @@ app.use(`${apiPrefix}/auth`, require('./src/features/auth/authRoutes'));
 app.use(`${apiPrefix}/doctors`, require('./src/features/doctor/doctorRoutes'));
 app.use(`${apiPrefix}/bookings`, require('./src/features/booking/bookingRoutes'));
 app.use(`${apiPrefix}/medicines`, require('./src/features/medicine/medicineRoutes'));
+app.use(`${apiPrefix}/admin`, require('./routes/adminRoutes'));
 
 // 404 Route
 app.use((req, res) => {
