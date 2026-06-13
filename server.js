@@ -6,28 +6,97 @@ const mongoose = require('mongoose');
 const { errorHandler } = require('./src/shared/middlewares/errorHandler');
 
 const app = express();
+const DEFAULT_LOCAL_MONGO_URI = 'mongodb://127.0.0.1:27017/carelink';
+
+const isAtlasConnectionString = (uri) => /mongodb(\+srv)?:\/\/[^\s]*mongodb\.net/i.test(uri);
+
+const connectToMongo = async (uri) => {
+  await mongoose.connect(uri, {
+    serverSelectionTimeoutMS: 5000
+  });
+};
+
+const initMemoryDB = () => {
+  // In-memory mock for development when no database is available
+  console.warn('⚠️  Using in-memory database stub for development.');
+  console.warn('    Data will be lost on restart. For persistence, configure MongoDB.');
+  
+  // Mock connection object
+  mongoose.connection.db = {
+    collections: {},
+    collection: (name) => ({
+      insertOne: async (doc) => ({ insertedId: doc._id || new mongoose.Types.ObjectId() }),
+      find: async () => ({ toArray: async () => [] }),
+      findOne: async () => null,
+      updateOne: async () => ({ modifiedCount: 0 }),
+      deleteOne: async () => ({ deletedCount: 0 }),
+    })
+  };
+  
+  // Mark connection as "connected" without actual DB
+  mongoose.connection.readyState = 1;
+  mongoose.connection._db = true;
+};
 
 /**
  * Database Connection
  */
 const connectDB = async () => {
-  const uri = process.env.MONGO_URI;
+  const uri = process.env.MONGO_URI?.trim();
+  const fallbackUri = process.env.MONGO_FALLBACK_URI?.trim() || DEFAULT_LOCAL_MONGO_URI;
+  const allowFallback = process.env.NODE_ENV !== 'production' && process.env.ALLOW_LOCAL_DB_FALLBACK !== 'false';
 
   if (!uri) {
-    console.warn('⚠️ MONGO_URI not set in environment');
-    process.exit(1);
+    if (!allowFallback) {
+      console.error('❌ MONGO_URI not set in environment.');
+      process.exit(1);
+    }
+
+    console.warn(`⚠️ MONGO_URI not set in environment. Falling back to ${fallbackUri}`);
+
+    try {
+      await connectToMongo(fallbackUri);
+      console.log(`✅ MongoDB connected successfully (${fallbackUri})`);
+      return;
+    } catch (fallbackErr) {
+      console.error('❌ MongoDB connection error:', fallbackErr.message);
+      console.error('   Set MONGO_URI in .env or start a local MongoDB instance.');
+      process.exit(1);
+    }
   }
 
   try {
-    await mongoose.connect(uri);
+    await connectToMongo(uri);
     console.log('✅ MongoDB connected successfully');
   } catch (err) {
     console.error('❌ MongoDB connection error:', err.message);
+
+    if (allowFallback && isAtlasConnectionString(uri) && fallbackUri !== uri) {
+      console.warn(`⚠️ Atlas connection failed. Trying local fallback at ${fallbackUri}`);
+
+      await mongoose.disconnect().catch(() => {});
+
+      try {
+        await connectToMongo(fallbackUri);
+        console.log(`✅ MongoDB connected successfully (${fallbackUri})`);
+        return;
+      } catch (fallbackErr) {
+        console.error('❌ Local MongoDB fallback also failed:', fallbackErr.message);
+      }
+
+      console.error('   If you want to use Atlas, whitelist your current IP in the Atlas network access settings.');
+      console.error('   Otherwise, start MongoDB locally or set MONGO_FALLBACK_URI to a reachable database.');
+    }
+
+    if (process.env.NODE_ENV === 'development' && process.env.USE_MEMORY_DB !== 'false') {
+      console.warn('\n⚠️  Starting with in-memory database for development.');
+      initMemoryDB();
+      return;
+    }
+
     process.exit(1);
   }
 };
-
-connectDB();
 
 /**
  * Middleware Configuration
@@ -98,27 +167,36 @@ app.use(errorHandler);
  */
 const PORT = process.env.PORT || 5000;
 
-const server = app.listen(PORT, () => {
-  console.log('\n==================================================');
-  console.log('🚀 CareLink Backend Server');
-  console.log(`   Running on port: ${PORT}`);
-  console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`   API Prefix: ${apiPrefix}`);
-  console.log('==================================================\n');
-});
+const startServer = async () => {
+  await connectDB();
 
-/**
- * Graceful Shutdown
- */
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received. Shutting down gracefully...');
+  const server = app.listen(PORT, () => {
+    console.log('\n==================================================');
+    console.log('🚀 CareLink Backend Server');
+    console.log(`   Running on port: ${PORT}`);
+    console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`   API Prefix: ${apiPrefix}`);
+    console.log('==================================================\n');
+  });
 
-  server.close(() => {
-    console.log('Server closed');
+  /**
+   * Graceful Shutdown
+   */
+  process.on('SIGTERM', () => {
+    console.log('SIGTERM received. Shutting down gracefully...');
 
-    mongoose.connection.close(false).then(() => {
-      console.log('MongoDB connection closed');
-      process.exit(0);
+    server.close(() => {
+      console.log('Server closed');
+
+      mongoose.connection.close(false).then(() => {
+        console.log('MongoDB connection closed');
+        process.exit(0);
+      });
     });
   });
+};
+
+startServer().catch((err) => {
+  console.error('❌ Failed to start server:', err.message);
+  process.exit(1);
 });

@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const User = require('../user/User');
 const generateToken = require('../../shared/utils/generateToken');
 const { generateOTP, getExpiryDate, isValidEmail } = require('../../shared/utils/validators');
+const { sendOTPEmail, sendWelcomeEmail } = require('../../shared/utils/emailSender');
 
 /**
  * Validate password strength
@@ -223,9 +224,8 @@ exports.forgotPassword = async (req, res, next) => {
     user.resetOtpExpires = getExpiryDate(10);
     await user.save({ validateBeforeSave: false });
 
-    // In production: send OTP via email
-    // For now, log it for testing
-    console.log(`OTP for ${email}: ${otp}`);
+    // Send OTP via email
+    await sendOTPEmail(user.email, otp, user.firstName);
 
     res.status(200).json({
       success: true,
