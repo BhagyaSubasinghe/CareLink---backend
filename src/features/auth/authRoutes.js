@@ -53,8 +53,8 @@ router.post(
       .notEmpty().withMessage('Last name is required'),
     body('email')
       .trim()
-      .isEmail().withMessage('Valid email is required')
-      .normalizeEmail(),
+      .isEmail().withMessage('Valid email is required'),
+      
     body('phone')
       .trim()
       .matches(/^\d{10}$/).withMessage('Phone must be 10 digits'),

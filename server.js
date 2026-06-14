@@ -39,8 +39,8 @@ const initMemoryDB = () => {
  * Database Connection
  */
 const connectDB = async () => {
-  // මෙතනට ඔයාගේ වැඩ කරපු නියම connection string එක දැම්මා (Chamodi2002 password එක සහිතව)
-  const uri = 'mongodb+srv://chamodi2002bhagya_db_user:Carelink123@cluster0.tux7n50.mongodb.net/carelink?retryWrites=true&w=majority';
+  
+  const uri = 'mongodb://chamodi2002bhagya_db_user:Carelink123@cluster0.tux7n50.mongodb.net/carelink?retryWrites=true&w=majority';
   const fallbackUri = process.env.MONGO_FALLBACK_URI?.trim() || DEFAULT_LOCAL_MONGO_URI;
   const allowFallback = process.env.NODE_ENV !== 'production' && process.env.ALLOW_LOCAL_DB_FALLBACK !== 'false';
 

@@ -36,7 +36,7 @@ const verifyToken = async (req, res, next) => {
     }
 
     // Attach user to request object
-    req.user = decoded;
+    req.user = user;
     next();
   } catch (err) {
     if (err.name === 'TokenExpiredError') {
@@ -69,7 +69,7 @@ const authorize = (...roles) => {
 
     // In a real app, fetch user from DB and check role
     // For now, we assume role is in the token
-    const userRole = req.user.role || 'patient';
+    const userRole = req.user.role;
 
     if (!roles.includes(userRole)) {
       return res.status(403).json({
