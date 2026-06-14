@@ -12,16 +12,14 @@ const isAtlasConnectionString = (uri) => /mongodb(\+srv)?:\/\/[^\s]*mongodb\.net
 
 const connectToMongo = async (uri) => {
   await mongoose.connect(uri, {
-    serverSelectionTimeoutMS: 5000
+    serverSelectionTimeoutMS: 30000,
   });
 };
 
 const initMemoryDB = () => {
-  // In-memory mock for development when no database is available
   console.warn('⚠️  Using in-memory database stub for development.');
   console.warn('    Data will be lost on restart. For persistence, configure MongoDB.');
   
-  // Mock connection object
   mongoose.connection.db = {
     collections: {},
     collection: (name) => ({
@@ -33,7 +31,6 @@ const initMemoryDB = () => {
     })
   };
   
-  // Mark connection as "connected" without actual DB
   mongoose.connection.readyState = 1;
   mongoose.connection._db = true;
 };
@@ -42,7 +39,8 @@ const initMemoryDB = () => {
  * Database Connection
  */
 const connectDB = async () => {
-  const uri = process.env.MONGO_URI?.trim();
+  // මෙතනට ඔයාගේ වැඩ කරපු නියම connection string එක දැම්මා (Chamodi2002 password එක සහිතව)
+  const uri = 'mongodb+srv://chamodi2002bhagya_db_user:Carelink123@cluster0.tux7n50.mongodb.net/carelink?retryWrites=true&w=majority';
   const fallbackUri = process.env.MONGO_FALLBACK_URI?.trim() || DEFAULT_LOCAL_MONGO_URI;
   const allowFallback = process.env.NODE_ENV !== 'production' && process.env.ALLOW_LOCAL_DB_FALLBACK !== 'false';
 
@@ -173,9 +171,9 @@ const startServer = async () => {
   const server = app.listen(PORT, () => {
     console.log('\n==================================================');
     console.log('🚀 CareLink Backend Server');
-    console.log(`   Running on port: ${PORT}`);
-    console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`   API Prefix: ${apiPrefix}`);
+    console.log(`    Running on port: ${PORT}`);
+    console.log(`    Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`    API Prefix: ${apiPrefix}`);
     console.log('==================================================\n');
   });
 
