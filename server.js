@@ -40,7 +40,7 @@ const initMemoryDB = () => {
  */
 const connectDB = async () => {
   
-  const uri = 'mongodb+srv://chamodi2002bhagya_db_user:dVc6Uxfq7FnAUkp@cluster0.tux7n50.mongodb.net/carelink?retryWrites=true&w=majority';
+  const uri = 'mongodb+srv://bhagyaSubasinghe:Newcare123@cluster0.0cfbual.mongodb.net/?appName=Cluster0';
   const fallbackUri = process.env.MONGO_FALLBACK_URI?.trim() || DEFAULT_LOCAL_MONGO_URI;
   const allowFallback = process.env.NODE_ENV !== 'production' && process.env.ALLOW_LOCAL_DB_FALLBACK !== 'false';
 
@@ -99,14 +99,22 @@ const connectDB = async () => {
 /**
  * Middleware Configuration
  */
-
-// CORS
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: [
+    'http://localhost:3000',
+    'http://localhost:3002'
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
+// CORS
+// app.use(cors({
+//   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+//   credentials: true,
+//   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+//   allowedHeaders: ['Content-Type', 'Authorization']
+// }));
 
 // Body Parser
 app.use(express.json({ limit: '50mb' }));
