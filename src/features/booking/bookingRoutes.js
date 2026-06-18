@@ -54,9 +54,9 @@ router.post(
       .notEmpty().withMessage('Visit type is required')
       .isIn(['in-person', 'telemedicine']).withMessage('Visit type must be in-person or telemedicine'),
     body('reason')
-      .notEmpty().withMessage('Reason for visit is required')
+      .optional()
       .trim()
-      .isLength({ min: 10, max: 500 }).withMessage('Reason must be between 10 and 500 characters')
+      .isLength({ max: 500 }).withMessage('Reason must not exceed 500 characters'),
   ],
   validateErrors,
   createBooking

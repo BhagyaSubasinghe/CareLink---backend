@@ -107,10 +107,25 @@ exports.createBooking = async (req, res, next) => {
       parseInt(hours) + Math.floor((parseInt(minutes) + doctorProfile.slotDuration) / 60),
       (parseInt(minutes) + doctorProfile.slotDuration) % 60
     );
-    const endTime = `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
 
+    const endTime = `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
+    // 🛑 PATIENT LIMIT CHECK (Max 5 patients per time slot)
+const activeAppointmentsCount = await Appointment.countDocuments({
+  doctor: doctorId,
+  appointmentDate: { $gte: dayStart, $lte: dayEnd },
+  startTime: timeSlot,
+  status: { $ne: 'Cancelled' }
+});
+
+const MAX_PATIENTS_PER_SLOT = 5;
+if (activeAppointmentsCount >= MAX_PATIENTS_PER_SLOT) {
+  return res.status(400).json({
+    success: false,
+    message: 'This time slot is fully booked! Please select another time slot or date.'
+  });
+}
     // Calculate queue number
-    const queueNumber = await Appointment.countDocuments({
+    const queueNumber = activeAppointmentsCount + 1;({
       doctor: doctorId,
       appointmentDate: { $gte: dayStart, $lte: dayEnd },
       startTime: timeSlot
