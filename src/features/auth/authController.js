@@ -18,6 +18,29 @@ function validatePasswordStrength(password) {
   return Object.values(requirements).every(req => req === true);
 }
 
+function getDuplicateField(err) {
+  if (err?.keyPattern) {
+    return Object.keys(err.keyPattern)[0];
+  }
+  if (err?.keyValue) {
+    return Object.keys(err.keyValue)[0];
+  }
+  return null;
+}
+
+function getDuplicateMessage(field) {
+  switch (field) {
+    case 'email':
+      return 'Email already exists.';
+    case 'phone':
+      return 'Phone number already exists.';
+    case 'googleId':
+      return 'Google account already exists.';
+    default:
+      return 'Duplicate record already exists.';
+  }
+}
+
 /**
  * METHOD 1: REGISTER
  * @desc    Register a new user with email/password
@@ -28,6 +51,8 @@ function validatePasswordStrength(password) {
 exports.register = async (req, res, next) => {
   try {
     const { firstName, lastName, email, phone, password, confirmPassword } = req.body;
+    const normalizedEmail = (email || '').trim().toLowerCase();
+    const normalizedPhone = (phone || '').trim();
 
     // Validate input
     if (!firstName || !lastName || !email || !phone || !password) {
@@ -37,7 +62,7 @@ exports.register = async (req, res, next) => {
       });
     }
 
-    if (!isValidEmail(email)) {
+    if (!isValidEmail(normalizedEmail)) {
       return res.status(400).json({
         success: false,
         message: 'Invalid email format'
@@ -60,14 +85,23 @@ exports.register = async (req, res, next) => {
 
     // Check if user already exists
     const existingUser = await User.findOne({
-      $or: [{ email: email.toLowerCase() }, { phone }]
+      $or: [{ email: normalizedEmail }, { phone: normalizedPhone }]
     });
 
     if (existingUser) {
-      const field = existingUser.email === email.toLowerCase() ? 'email' : 'phone';
+      const isEmailConflict = existingUser.email === normalizedEmail;
+
+      if (isEmailConflict && existingUser.googleId) {
+        return res.status(409).json({
+          success: false,
+          message: 'This email is already linked to Google login. Please continue with Google.'
+        });
+      }
+
+      const message = isEmailConflict ? 'Email already exists.' : 'Phone number already exists.';
       return res.status(409).json({
         success: false,
-        message: `User with this ${field} already exists`
+        message
       });
     }
 
@@ -75,14 +109,14 @@ exports.register = async (req, res, next) => {
     const user = await User.create({
       firstName: firstName.trim(),
       lastName: lastName.trim(),
-      email: email.toLowerCase().trim(),
-      phone: phone.trim(),
+      email: normalizedEmail,
+      phone: normalizedPhone,
       password,
       isVerified: true, // Email/password users are verified on registration
       role: 'patient'
     });
 
-    const token = generateToken(user._id);
+    const token = generateToken(user._id, user.role);
 
     res.status(201).json({
       success: true,
@@ -100,10 +134,21 @@ exports.register = async (req, res, next) => {
     });
   } catch (err) {
     if (err.code === 11000) {
-      const field = Object.keys(err.keyPattern)[0];
+      const field = getDuplicateField(err);
+
+      if (field === 'email') {
+        const existingByEmail = await User.findOne({ email: (req.body.email || '').trim().toLowerCase() }).select('googleId');
+        if (existingByEmail?.googleId) {
+          return res.status(409).json({
+            success: false,
+            message: 'This email is already linked to Google login. Please continue with Google.'
+          });
+        }
+      }
+
       return res.status(409).json({
         success: false,
-        message: `User with this ${field} already exists`
+        message: getDuplicateMessage(field)
       });
     }
     next(err);
@@ -120,6 +165,7 @@ exports.register = async (req, res, next) => {
 exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
+    const normalizedEmail = (email || '').trim().toLowerCase();
 
     if (!email || !password) {
       return res.status(400).json({
@@ -128,7 +174,7 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    if (!isValidEmail(email)) {
+    if (!isValidEmail(normalizedEmail)) {
       return res.status(400).json({
         success: false,
         message: 'Invalid email format'
@@ -136,12 +182,12 @@ exports.login = async (req, res, next) => {
     }
 
     // Find user and explicitly select password field
-    const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
+    const user = await User.findOne({ email: normalizedEmail }).select('+password');
 
     if (!user || !user.password) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid email or password'
+        message: 'Invalid credentials.'
       });
     }
 
@@ -151,7 +197,7 @@ exports.login = async (req, res, next) => {
     if (!isPasswordValid) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid email or password'
+        message: 'Invalid credentials.'
       });
     }
 
@@ -159,7 +205,7 @@ exports.login = async (req, res, next) => {
     user.lastLogin = new Date();
     await user.save();
 
-    const token = generateToken(user._id);
+    const token = generateToken(user._id, user.role);
 
     res.status(200).json({
       success: true,
@@ -191,6 +237,7 @@ exports.login = async (req, res, next) => {
 exports.forgotPassword = async (req, res, next) => {
   try {
     const { email } = req.body;
+    const normalizedEmail = (email || '').trim().toLowerCase();
 
     if (!email) {
       return res.status(400).json({
@@ -199,14 +246,14 @@ exports.forgotPassword = async (req, res, next) => {
       });
     }
 
-    if (!isValidEmail(email)) {
+    if (!isValidEmail(normalizedEmail)) {
       return res.status(400).json({
         success: false,
         message: 'Invalid email format'
       });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findOne({ email: normalizedEmail });
 
     if (!user) {
       // Security: don't reveal if email exists
@@ -225,7 +272,14 @@ exports.forgotPassword = async (req, res, next) => {
     await user.save({ validateBeforeSave: false });
 
     // Send OTP via email
-    await sendOTPEmail(user.email, otp, user.firstName);
+    const emailSent = await sendOTPEmail(user.email, otp, user.firstName);
+
+    if (!emailSent) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send reset email. Please verify SMTP configuration and try again.'
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -365,7 +419,7 @@ exports.resetPassword = async (req, res, next) => {
     await user.save();
 
     // Generate new auth token
-    const authToken = generateToken(user._id);
+    const authToken = generateToken(user._id, user.role);
 
     res.status(200).json({
       success: true,
@@ -419,7 +473,7 @@ exports.googleLogin = async (req, res, next) => {
       user.lastLogin = new Date();
       await user.save();
 
-      const token = generateToken(user._id);
+      const token = generateToken(user._id, user.role);
 
       return res.status(200).json({
         success: true,
@@ -453,7 +507,7 @@ exports.googleLogin = async (req, res, next) => {
       password: crypto.randomBytes(16).toString('hex')
     });
 
-    const token = generateToken(user._id);
+    const token = generateToken(user._id, user.role);
 
     res.status(201).json({
       success: true,
@@ -472,10 +526,10 @@ exports.googleLogin = async (req, res, next) => {
     });
   } catch (err) {
     if (err.code === 11000) {
-      const field = Object.keys(err.keyPattern)[0];
+      const field = getDuplicateField(err);
       return res.status(409).json({
         success: false,
-        message: `User with this ${field} already exists`
+        message: getDuplicateMessage(field)
       });
     }
     next(err);
@@ -525,7 +579,7 @@ exports.googleRegister = async (req, res, next) => {
       password: crypto.randomBytes(16).toString('hex')
     });
 
-    const token = generateToken(user._id);
+    const token = generateToken(user._id, user.role);
 
     res.status(201).json({
       success: true,
@@ -544,10 +598,10 @@ exports.googleRegister = async (req, res, next) => {
     });
   } catch (err) {
     if (err.code === 11000) {
-      const field = Object.keys(err.keyPattern)[0];
+      const field = getDuplicateField(err);
       return res.status(409).json({
         success: false,
-        message: `User with this ${field} already exists`
+        message: getDuplicateMessage(field)
       });
     }
     next(err);

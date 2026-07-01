@@ -1,5 +1,14 @@
 const nodemailer = require('nodemailer');
 
+const hasValidSmtpConfig = () => {
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+
+  if (!user || !pass) return false;
+  if (user.includes('your_email') || pass.includes('your_email_password')) return false;
+  return true;
+};
+
 /**
  * Create email transporter using Gmail SMTP
  */
@@ -26,11 +35,9 @@ const createTransporter = () => {
 exports.sendOTPEmail = async (email, otp, firstName) => {
   try {
     // Check if SMTP credentials are configured
-    if (!process.env.SMTP_USER || !process.env.SMTP_PASS || 
-        process.env.SMTP_USER.includes('your_email') || 
-        process.env.SMTP_PASS.includes('your_email_password')) {
-      console.warn('⚠️  SMTP not configured. OTP for testing:', otp);
-      return true; // Don't fail the request
+    if (!hasValidSmtpConfig()) {
+      console.error('❌ SMTP not configured correctly. Cannot send password reset email.');
+      return false;
     }
 
     const transporter = createTransporter();
@@ -81,11 +88,6 @@ exports.sendOTPEmail = async (email, otp, firstName) => {
     return true;
   } catch (error) {
     console.error('❌ Failed to send OTP email:', error.message);
-    // In development, don't fail the request if email sending fails
-    if (process.env.NODE_ENV === 'development') {
-      console.warn('⚠️  Continuing without email. OTP for testing:', otp);
-      return true;
-    }
     return false;
   }
 };
@@ -98,8 +100,7 @@ exports.sendOTPEmail = async (email, otp, firstName) => {
  */
 exports.sendWelcomeEmail = async (email, firstName) => {
   try {
-    if (!process.env.SMTP_USER || !process.env.SMTP_PASS || 
-        process.env.SMTP_USER.includes('your_email')) {
+    if (!hasValidSmtpConfig()) {
       return true;
     }
 

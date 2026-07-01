@@ -23,8 +23,6 @@ const userSchema = new mongoose.Schema(
     },
     phone: { 
       type: String, 
-      required: [true, 'Phone number is required'],
-      unique: true, 
       trim: true,
       match: [/^\d{10}$/, 'Phone must be 10 digits']
     },
@@ -66,9 +64,7 @@ const userSchema = new mongoose.Schema(
     // Google OAuth fields
     googleId: {
       type: String,
-      default: null,
-      unique: true,
-      sparse: true
+      trim: true
     },
     // OTP for forgot password flow (3-step process)
     resetOtp: {
@@ -94,6 +90,25 @@ const userSchema = new mongoose.Schema(
     },
   },
   { timestamps: true }
+);
+
+// Only enforce uniqueness for real Google IDs (string values).
+// This avoids duplicate-key errors for email/password users with no googleId.
+userSchema.index(
+  { googleId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { googleId: { $type: 'string' } }
+  }
+);
+
+// Keep phone unique only when a phone number is present.
+userSchema.index(
+  { phone: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { phone: { $type: 'string' } }
+  }
 );
 
 // Hash password before saving

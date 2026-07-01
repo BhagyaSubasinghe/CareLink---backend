@@ -27,7 +27,7 @@ const verifyToken = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret-change-me');
 
     // Check if user exists
-    const user = await User.findById(decoded.id);
+    const user = await User.findById(decoded.id).select('role email firstName lastName');
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -35,8 +35,15 @@ const verifyToken = async (req, res, next) => {
       });
     }
 
-    // Attach user to request object
-    req.user = decoded;
+    // Attach normalized auth user context
+    req.user = {
+      id: user._id.toString(),
+      role: user.role,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      token: decoded
+    };
     next();
   } catch (err) {
     if (err.name === 'TokenExpiredError') {

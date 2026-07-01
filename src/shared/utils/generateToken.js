@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 
-module.exports = function generateToken(userId) {
+module.exports = function generateToken(userId, role = 'patient') {
   const secret = process.env.JWT_SECRET || 'dev-secret-change-me';
-  return jwt.sign({ id: userId }, secret, { expiresIn: '7d' });
+  const expiresIn = process.env.JWT_EXPIRE || '7d';
+  return jwt.sign({ id: userId, role }, secret, { expiresIn });
 };

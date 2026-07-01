@@ -30,7 +30,15 @@ exports.errorHandler = (err, req, res, next) => {
   if (err.code === 11000) {
     statusCode = 409;
     const field = Object.keys(err.keyPattern)[0];
-    message = `User with this ${field} already exists`;
+    if (field === 'email') {
+      message = 'Email already exists.';
+    } else if (field === 'phone') {
+      message = 'Phone number already exists.';
+    } else if (field === 'googleId') {
+      message = 'Google account already exists.';
+    } else {
+      message = 'Duplicate record already exists.';
+    }
     return res.status(statusCode).json({
       success: false,
       message

@@ -4,6 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const { errorHandler } = require('./src/shared/middlewares/errorHandler');
+const User = require('./src/features/user/User');
 
 const app = express();
 const DEFAULT_LOCAL_MONGO_URI = 'mongodb://127.0.0.1:27017/carelink';
@@ -14,6 +15,11 @@ const connectToMongo = async (uri) => {
   await mongoose.connect(uri, {
     serverSelectionTimeoutMS: 30000,
   });
+};
+
+const syncCriticalIndexes = async () => {
+  await User.syncIndexes();
+  console.log('✅ User indexes synchronized');
 };
 
 const initMemoryDB = () => {
@@ -39,8 +45,7 @@ const initMemoryDB = () => {
  * Database Connection
  */
 const connectDB = async () => {
-  
-  const uri = 'mongodb+srv://bhagyaSubasinghe:Newcare123@cluster0.0cfbual.mongodb.net/?appName=Cluster0';
+  const uri = process.env.MONGO_URI?.trim();
   const fallbackUri = process.env.MONGO_FALLBACK_URI?.trim() || DEFAULT_LOCAL_MONGO_URI;
   const allowFallback = process.env.NODE_ENV !== 'production' && process.env.ALLOW_LOCAL_DB_FALLBACK !== 'false';
 
@@ -86,7 +91,7 @@ const connectDB = async () => {
       console.error('   Otherwise, start MongoDB locally or set MONGO_FALLBACK_URI to a reachable database.');
     }
 
-    if (process.env.NODE_ENV === 'development' && process.env.USE_MEMORY_DB !== 'false') {
+    if (process.env.NODE_ENV === 'development' && process.env.USE_MEMORY_DB === 'true') {
       console.warn('\n⚠️  Starting with in-memory database for development.');
       initMemoryDB();
       return;
@@ -99,11 +104,19 @@ const connectDB = async () => {
 /**
  * Middleware Configuration
  */
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3002',
+  process.env.FRONTEND_URL
+].filter(Boolean);
+
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'http://localhost:3002'
-  ],
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -175,6 +188,7 @@ const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   await connectDB();
+  await syncCriticalIndexes();
 
   const server = app.listen(PORT, () => {
     console.log('\n==================================================');
