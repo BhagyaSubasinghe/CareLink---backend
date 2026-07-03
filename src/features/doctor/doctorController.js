@@ -503,3 +503,47 @@ exports.getAnalytics = async (req, res, next) => {
     next(err);
   }
 };
+
+// Search doctors by name
+exports.searchDoctors = async (req, res) => {
+  try {
+    const { q } = req.query;
+
+    if (!q || q.trim() === "") {
+      return res.status(400).json({
+        success: false,
+        message: "Doctor name is required."
+      });
+    }
+
+    const doctors = await Doctor.find({
+      isVerified: true,
+      $or: [
+        { firstName: { $regex: q, $options: "i" } },
+        { lastName: { $regex: q, $options: "i" } },
+        {
+          $expr: {
+            $regexMatch: {
+              input: { $concat: ["$firstName", " ", "$lastName"] },
+              regex: q,
+              options: "i"
+            }
+          }
+        }
+      ]
+    });
+
+    res.status(200).json({
+      success: true,
+      data: doctors
+    });
+
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      success: false,
+      message: "Server Error"
+    });
+  }
+};

@@ -224,4 +224,6 @@ router.put('/appointments/:appointmentId/complete', verifyToken, completeAppoint
  */
 router.get('/analytics', verifyToken, getAnalytics);
 
+router.get("/search", doctorController.searchDoctors);
+
 module.exports = router;
