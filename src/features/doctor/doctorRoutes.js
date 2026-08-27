@@ -10,7 +10,8 @@ const {
   getDoctorAppointments,
   getAppointmentDetail,
   completeAppointment,
-  getAnalytics
+  getAnalytics,
+  searchDoctors
 } = require('./doctorController');
 const { verifyToken, authorize } = require('../../shared/middlewares/authMiddleware');
 
@@ -224,6 +225,7 @@ router.put('/appointments/:appointmentId/complete', verifyToken, completeAppoint
  */
 router.get('/analytics', verifyToken, getAnalytics);
 
-router.get("/search", doctorController.searchDoctors);
+
+router.get("/search", searchDoctors);
 
 module.exports = router;
