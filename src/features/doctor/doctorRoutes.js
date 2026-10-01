@@ -76,16 +76,6 @@ router.get(
  * GET /api/doctors/:id
  * Get single doctor details by ID
  */
-router.get(
-  '/:id',
-  [
-    param('id')
-      .isMongoId().withMessage('Invalid doctor ID')
-  ],
-  validateErrors,
-  getDoctorById
-);
-
 /**
  * ============================================
  * PROTECTED ROUTES (Authentication Required)
@@ -227,5 +217,19 @@ router.get('/analytics', verifyToken, getAnalytics);
 
 
 router.get("/search", searchDoctors);
+
+/**
+ * GET /api/doctors/:id
+ * Get single doctor details by ID
+ */
+router.get(
+  '/:id',
+  [
+    param('id')
+      .isMongoId().withMessage('Invalid doctor ID')
+  ],
+  validateErrors,
+  getDoctorById
+);
 
 module.exports = router;

@@ -125,11 +125,7 @@ if (activeAppointmentsCount >= MAX_PATIENTS_PER_SLOT) {
   });
 }
     // Calculate queue number
-    const queueNumber = activeAppointmentsCount + 1;({
-      doctor: doctorId,
-      appointmentDate: { $gte: dayStart, $lte: dayEnd },
-      startTime: timeSlot
-    }) + 1;
+    const queueNumber = activeAppointmentsCount + 1;
 
     // Create appointment
     const appointment = new Appointment({

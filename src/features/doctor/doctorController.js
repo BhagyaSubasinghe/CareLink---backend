@@ -48,7 +48,7 @@ exports.getAllDoctors = async (req, res, next) => {
 
     // Execute query
     const doctors = await Doctor.find(filter)
-      .select('firstName lastName specialty hospital location rating reviews fee avatar visitTypes consultationFee experience education')
+      .select('firstName lastName specialty hospital location rating reviews fee avatar visitTypes consultationFee experience education availableDays slots isAvailable')
       .skip(skip)
       .limit(parseInt(limit))
       .sort({ rating: -1, reviews: -1 });
