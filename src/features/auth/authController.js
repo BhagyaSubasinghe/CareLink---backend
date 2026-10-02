@@ -1,8 +1,11 @@
 const crypto = require('crypto');
+const { OAuth2Client } = require('google-auth-library');
 const User = require('../user/User');
 const generateToken = require('../../shared/utils/generateToken');
 const { generateOTP, getExpiryDate, isValidEmail } = require('../../shared/utils/validators');
 const { sendOTPEmail, sendWelcomeEmail } = require('../../shared/utils/emailSender');
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 /**
  * Validate password strength
@@ -446,7 +449,35 @@ exports.resetPassword = async (req, res, next) => {
  */
 exports.googleLogin = async (req, res, next) => {
   try {
-    const { googleId, email, firstName, lastName, avatar } = req.body;
+    let { googleId, email, firstName, lastName, avatar } = req.body;
+    const { credential } = req.body;
+
+    if (credential) {
+      if (!process.env.GOOGLE_CLIENT_ID) {
+        return res.status(503).json({
+          success: false,
+          message: 'Google login is not configured on the server'
+        });
+      }
+
+      try {
+        const ticket = await googleClient.verifyIdToken({
+          idToken: credential,
+          audience: process.env.GOOGLE_CLIENT_ID
+        });
+        const payload = ticket.getPayload();
+        googleId = payload.sub;
+        email = payload.email;
+        firstName = payload.given_name;
+        lastName = payload.family_name;
+        avatar = payload.picture;
+      } catch (verificationError) {
+        return res.status(401).json({
+          success: false,
+          message: 'Google credential could not be verified'
+        });
+      }
+    }
 
     if (!googleId || !email) {
       return res.status(400).json({

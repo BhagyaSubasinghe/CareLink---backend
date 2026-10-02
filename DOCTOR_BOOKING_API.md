@@ -571,16 +571,15 @@ const addReview = async (token, appointmentId, rating, review) => {
 
 ---
 
-## Database Seeding (Sample Data)
+## Database Seeding (Local Demo Data)
 
-To add sample doctors, use:
+To add three verified demo doctors to the database configured in `.env`, use:
 
 ```bash
-curl -X POST http://localhost:5000/api/v1/admin/doctors/seed \
-  -H "Content-Type: application/json"
+npm run seed:doctors
 ```
 
-This would require a separate admin endpoint (not included in basic booking system).
+This command is explicit and should only be used for local or test environments.
 
 ---
 

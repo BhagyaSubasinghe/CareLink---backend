@@ -150,10 +150,14 @@ router.post(
 router.post(
   '/google-login',
   [
+    body('credential')
+      .optional()
+      .isString().withMessage('Google credential must be a string'),
     body('googleId')
-      .trim()
-      .notEmpty().withMessage('Google ID is required'),
+      .optional()
+      .trim(),
     body('email')
+      .optional()
       .trim()
       .isEmail().withMessage('Valid email is required'),
     body('firstName')
